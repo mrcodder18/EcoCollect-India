@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EcoCollect - Driver App</title>
+    <style>
+        :root {
+            --primary: #028024; 
+            --secondary: #f47f20; 
+            --dark: #2c3e50;
+            --light: #f4f7f6;
+            --white: #ffffff;
+            --border: #e1e5eb;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        body { background-color: #e9ecef; color: var(--dark); display: flex; justify-content: center; height: 100vh; overflow: hidden; }
+        .app-container { width: 100%; max-width: 480px; background: var(--light); height: 100%; display: flex; flex-direction: column; position: relative; box-shadow: 0 0 20px rgba(0,0,0,0.1); }
+
+        /* Top Header */
+        .app-header { background: var(--primary); color: white; padding: 20px 15px 15px; display: flex; justify-content: space-between; align-items: center; z-index: 10; }
+        .driver-info { display: flex; align-items: center; gap: 10px; }
+        .avatar { width: 40px; height: 40px; background: white; color: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem; }
+        .truck-load { background: rgba(255,255,255,0.2); padding: 5px 10px; border-radius: 20px; font-size: 0.9rem; font-weight: bold; display: flex; align-items: center; gap: 5px; }
+
+        /* Embedded Map Section */
+        #map { width: 100%; height: 200px; background-color: #e0e0e0; border-bottom: 3px solid var(--secondary); }
+
+        /* Main Scrollable Content */
+        .app-body { flex-grow: 1; overflow-y: auto; padding: 15px; padding-bottom: 80px; }
+        
+        .section-title { font-size: 1.1rem; color: #555; margin-bottom: 10px; font-weight: 600; display: flex; justify-content: space-between; }
+
+        /* Task Cards */
+        .task-card { background: white; border-radius: 10px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 4px solid var(--secondary); transition: 0.3s; }
+        .task-card.completed { border-left-color: var(--primary); opacity: 0.7; }
+        .task-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+        .task-title { font-weight: bold; font-size: 1.1rem; color: var(--dark); }
+        .task-type { font-size: 0.75rem; background: #e3f2fd; color: #1565c0; padding: 3px 8px; border-radius: 12px; font-weight: bold; }
+        .task-address { font-size: 0.9rem; color: #666; margin-bottom: 15px; line-height: 1.4; }
+        
+        /* Action Buttons */
+        .btn-group { display: flex; gap: 10px; }
+        .btn { flex: 1; padding: 10px; border: none; border-radius: 6px; font-weight: bold; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; transition: 0.2s; }
+        .btn-nav { background: #e8f5e9; color: var(--primary); }
+        .btn-done { background: var(--primary); color: white; }
+        .btn-call { background: #fff3e0; color: var(--secondary); flex: 0.3; }
+
+        /* Warehouse Dropoff Card */
+        .warehouse-card { background: var(--dark); color: white; border-radius: 10px; padding: 20px; text-align: center; margin-top: 20px; display: none; }
+        .warehouse-card.visible { display: block; }
+        .warehouse-card h3 { margin-bottom: 10px; color: var(--secondary); }
+        .btn-unload { background: var(--secondary); color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; width: 100%; font-size: 1rem; margin-top: 15px; cursor: pointer; }
+
+        /* Bottom Navigation */
+        .bottom-nav { position: absolute; bottom: 0; width: 100%; background: white; display: flex; border-top: 1px solid var(--border); padding: 10px 0; z-index: 10; }
+        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #888; font-size: 0.8rem; cursor: pointer; gap: 4px; }
+        .nav-item.active { color: var(--primary); font-weight: bold; }
+        .nav-icon { font-size: 1.4rem; }
+
+        /* Input Modal */
+        .modal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 20; }
+        .modal { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 350px; text-align: center; }
+        .modal h3 { margin-bottom: 15px; color: var(--primary); }
+        .modal input { width: 100%; padding: 12px; font-size: 1.2rem; border: 2px solid #ccc; border-radius: 6px; text-align: center; margin-bottom: 15px; }
+        .modal-btns { display: flex; gap: 10px; }
+        .modal-btn-cancel { flex: 1; padding: 10px; background: #eee; border: none; border-radius: 6px; font-weight: bold; color: #555; cursor: pointer; }
+        .modal-btn-confirm { flex: 1; padding: 10px; background: var(--primary); border: none; border-radius: 6px; font-weight: bold; color: white; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <header class="app-header">
+            <div class="driver-info">
+                <div class="avatar">R</div>
+                <div>
+                    <div style="font-size: 1.1rem; font-weight: bold;">Raju Driver</div>
+                    <div style="font-size: 0.75rem; opacity: 0.9;">Vehicle: MH-46-AB-1234</div>
+                </div>
+            </div>
+            <div class="truck-load">
+                <span>⚖️</span> <span id="total-load">0</span> KG
+            </div>
+        </header>
+
+        <div id="map"></div>
+
+        <div class="app-body" id="app-body">
+            
+            <div id="route-view">
+                <h2 class="section-title">
+                    <span>Pending Pickups</span>
+                    <span style="color: var(--primary);" id="pending-count">0</span>
+                </h2>
+                <div id="pending-tasks">
+                    </div>
+
+                <div class="warehouse-card" id="warehouse-card">
+                    <h3>🏢 Warehouse Drop-off</h3>
+                    <p>You have collected <strong id="dropoff-amount">0 KG</strong> of waste.</p>
+                    <p style="font-size: 0.85rem; color: #aaa; margin-top: 5px;">Navigate to EcoCollect Panvel HQ to unload.</p>
+                    <button class="btn-unload" onclick="openMaps('Panvel, Navi Mumbai, Maharashtra')">🧭 Navigate to HQ</button>
+                    <button class="btn-unload" style="background: var(--primary); margin-top: 10px;" onclick="unloadTruck()">✅ Confirm Unload</button>
+                </div>
+            </div>
+
+            <div id="history-view" style="display: none;">
+                <h2 class="section-title">Completed Today</h2>
+                <div id="completed-tasks"></div>
+                <p id="no-history" style="text-align: center; color: #888; margin-top: 20px;">No pickups completed yet.</p>
+            </div>
+
+        </div>
+
+        <nav class="bottom-nav">
+            <div class="nav-item active" id="nav-route" onclick="switchView('route')">
+                <div class="nav-icon">🗺️</div>
+                <div>My Route</div>
+            </div>
+            <div class="nav-item" id="nav-history" onclick="switchView('history')">
+                <div class="nav-icon">✅</div>
+                <div>Completed</div>
+            </div>
+        </nav>
+
+        <div class="modal-overlay" id="weight-modal">
+            <div class="modal">
+                <h3>Confirm Pickup Weight</h3>
+                <p style="font-size: 0.9rem; color: #666; margin-bottom: 15px;">Enter the exact weight collected from <strong id="modal-client-name">Client</strong>.</p>
+                <input type="number" id="collected-weight" placeholder="e.g. 25" inputmode="numeric">
+                <div class="modal-btns">
+                    <button class="modal-btn-cancel" onclick="closeModal()">Cancel</button>
+                    <button class="modal-btn-confirm" onclick="confirmPickup()">Submit</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY_HERE&callback=initMap"></script>
+
+    <script>
+        // State Management
+        let totalLoadKg = 0;
+        let currentTaskIdToComplete = null;
+        let map;
+        let markers = [];
+
+        // Mock Data for Assigned Pickups (Added Lat/Lng for the Map)
+        let pickups = [
+            { id: 1, name: 'Gokuldham Society', type: 'Wet Waste (Geela)', address: 'Sector 12, Panvel', phone: '9876543210', status: 'pending', kg: 0, lat: 18.9894, lng: 73.1175 },
+            { id: 2, name: 'The Bombay Cafe', type: 'Mixed Waste', address: 'Old Mumbai Highway, Panvel', phone: '8356931205', status: 'pending', kg: 0, lat: 18.9950, lng: 73.1150 },
+            { id: 3, name: 'TechPark IT', type: 'Dry Scrap (Sukha)', address: 'Khandeshwar, Navi Mumbai', phone: '9988776655', status: 'pending', kg: 0, lat: 19.0136, lng: 73.0978 }
+        ];
+
+        // 2. Initialize the Interactive Map
+        function initMap() {
+            // Center map on Panvel area by default
+            map = new google.maps.Map(document.getElementById("map"), {
+                center: { lat: 18.9900, lng: 73.1150 },
+                zoom: 13,
+                disableDefaultUI: true, // Hides map controls to keep mobile view clean
+                zoomControl: true
+            });
+            updateMapMarkers();
+        }
+
+        // Add Markers to the map for pending pickups
+        function updateMapMarkers() {
+            if(!map) return;
+            
+            // Clear old markers
+            markers.forEach(marker => marker.setMap(null));
+            markers = [];
+
+            pickups.forEach(task => {
+                if (task.status === 'pending') {
+                    const marker = new google.maps.Marker({
+                        position: { lat: task.lat, lng: task.lng },
+                        map: map,
+                        title: task.name,
+                        icon: 'http://maps.google.com/mapfiles/ms/icons/orange-dot.png'
+                    });
+                    markers.push(marker);
+                }
+            });
+        }
+
+        // Render UI Tasks
+        function renderTasks() {
+            const pendingContainer = document.getElementById('pending-tasks');
+            const completedContainer = document.getElementById('completed-tasks');
+            pendingContainer.innerHTML = ''; completedContainer.innerHTML = '';
+            
+            let pendingCount = 0; let completedCount = 0;
+
+            pickups.forEach(task => {
+                if (task.status === 'pending') {
+                    pendingCount++;
+                    pendingContainer.innerHTML += `
+                        <div class="task-card" id="task-${task.id}">
+                            <div class="task-header">
+                                <div class="task-title">${task.name}</div>
+                                <div class="task-type">${task.type}</div>
+                            </div>
+                            <div class="task-address">📍 ${task.address}</div>
+                            <div class="btn-group">
+                                <button class="btn btn-call" onclick="window.open('tel:${task.phone}')">📞</button>
+                                <button class="btn btn-nav" onclick="openMaps('${task.address}')">🧭 Navigate</button>
+                                <button class="btn btn-done" onclick="openWeightModal(${task.id}, '${task.name}')">✅ Picked Up</button>
+                            </div>
+                        </div>
+                    `;
+                } else if (task.status === 'completed') {
+                    completedCount++;
+                    completedContainer.innerHTML += `
+                        <div class="task-card completed">
+                            <div class="task-header">
+                                <div class="task-title">${task.name}</div>
+                                <div style="font-weight: bold; color: var(--primary);">+${task.kg} KG</div>
+                            </div>
+                            <div class="task-address" style="margin-bottom: 0;">📍 ${task.address}</div>
+                        </div>
+                    `;
+                }
+            });
+
+            document.getElementById('pending-count').innerText = pendingCount;
+            document.getElementById('no-history').style.display = completedCount === 0 ? 'block' : 'none';
+
+            // Show Warehouse Dropoff if tasks are done and truck is loaded
+            if (totalLoadKg > 0 && pendingCount === 0) {
+                document.getElementById('warehouse-card').classList.add('visible');
+            } else {
+                document.getElementById('warehouse-card').classList.remove('visible');
+            }
+            
+            updateMapMarkers(); // Refresh map
+        }
+
+        // Navigation
+        function switchView(view) {
+            document.getElementById('nav-route').classList.remove('active');
+            document.getElementById('nav-history').classList.remove('active');
+            document.getElementById('route-view').style.display = 'none';
+            document.getElementById('history-view').style.display = 'none';
+
+            if (view === 'route') {
+                document.getElementById('nav-route').classList.add('active');
+                document.getElementById('route-view').style.display = 'block';
+                document.getElementById('map').style.display = 'block'; // Show map
+            } else {
+                document.getElementById('nav-history').classList.add('active');
+                document.getElementById('history-view').style.display = 'block';
+                document.getElementById('map').style.display = 'none'; // Hide map to save space
+            }
+        }
+
+        // 3. Open Turn-by-Turn Mobile Navigation App
+        function openMaps(address) {
+            // This URL intent forces the phone to open the Google Maps App with driving directions
+            const encodedAddress = encodeURIComponent(address);
+            const googleMapsIntentUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}&travelmode=driving`;
+            window.open(googleMapsIntentUrl, '_blank');
+        }
+
+        // Modal Logic
+        function openWeightModal(taskId, clientName) {
+            currentTaskIdToComplete = taskId;
+            document.getElementById('modal-client-name').innerText = clientName;
+            document.getElementById('collected-weight').value = '';
+            document.getElementById('weight-modal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('weight-modal').style.display = 'none';
+            currentTaskIdToComplete = null;
+        }
+
+        function confirmPickup() {
+            const weight = parseFloat(document.getElementById('collected-weight').value);
+            if (isNaN(weight) || weight <= 0) return alert("Enter valid weight.");
+
+            const taskIndex = pickups.findIndex(t => t.id === currentTaskIdToComplete);
+            if (taskIndex > -1) {
+                pickups[taskIndex].status = 'completed';
+                pickups[taskIndex].kg = weight;
+                totalLoadKg += weight;
+            }
+
+            closeModal();
+            updateTruckLoad();
+            renderTasks();
+        }
+
+        function updateTruckLoad() {
+            document.getElementById('total-load').innerText = totalLoadKg;
+            document.getElementById('dropoff-amount').innerText = totalLoadKg + ' KG';
+        }
+
+        function unloadTruck() {
+            if (confirm(`Confirm unloading ${totalLoadKg} KG at the warehouse?`)) {
+                alert("Shift completed!");
+                totalLoadKg = 0;
+                updateTruckLoad();
+                document.getElementById('warehouse-card').classList.remove('visible');
+            }
+        }
+
+        // Initial render
+        renderTasks();
+    </script>
+</body>
+</html>
