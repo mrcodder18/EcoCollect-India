@@ -140,6 +140,7 @@
             <a id="nav-rates" onclick="switchTab('tab-rates')">Scrap Rates</a>
             <a id="nav-pricing" onclick="switchTab('tab-pricing')">Plans</a>
             <a id="nav-schedule" onclick="switchTab('tab-schedule')">Book Pickup</a>
+            <a id="nav-track" onclick="switchTab('tab-track')">Track Pickups</a>
             <a id="nav-about" onclick="switchTab('tab-about')">About & Support</a>
         </nav>
     </header>
@@ -182,6 +183,7 @@
         <section class="guidelines">
             <h2>Strict Segregation Guidelines</h2>
             <p>Proper segregation at the source is the key to recycling. Please follow these guidelines before placing your bins out for collection.</p>
+            
             <div class="guide-container">
                 <div class="guide-card wet">
                     <h3>🟢 Wet Waste</h3>
@@ -247,32 +249,13 @@
         <section class="rate-card-section">
             <h2>Today's Scrap Rates (Per KG)</h2>
             <p>Don't just throw away your dry waste—sell it! We pay YOU for segregated recyclables based on current market rates.</p>
-            <div class="rate-grid">
-                <div class="rate-item">
-                    <div class="rate-icon">📰</div>
-                    <div class="rate-title">Newspaper (Raddi)</div>
-                    <div class="rate-price">₹15 <span class="rate-unit">/ kg</span></div>
-                </div>
-                <div class="rate-item">
-                    <div class="rate-icon">📦</div>
-                    <div class="rate-title">Cardboard / Carton</div>
-                    <div class="rate-price">₹10 <span class="rate-unit">/ kg</span></div>
-                </div>
-                <div class="rate-item">
-                    <div class="rate-icon">🧴</div>
-                    <div class="rate-title">Hard Plastic / PET</div>
-                    <div class="rate-price">₹12 <span class="rate-unit">/ kg</span></div>
-                </div>
-                <div class="rate-item">
-                    <div class="rate-icon">🥫</div>
-                    <div class="rate-title">Iron / Metals</div>
-                    <div class="rate-price">₹28 <span class="rate-unit">/ kg</span></div>
-                </div>
-                <div class="rate-item">
-                    <div class="rate-icon">💻</div>
-                    <div class="rate-title">Mixed E-Waste</div>
-                    <div class="rate-price">₹20 <span class="rate-unit">/ kg</span></div>
-                </div>
+            <div class="rate-grid" id="rates-container">
+                <!-- Rates populated by JS from backend -->
+                <div class="rate-item"><div class="rate-icon">📰</div><div class="rate-title">Newspaper (Raddi)</div><div class="rate-price" id="rate-news-display">--</div></div>
+                <div class="rate-item"><div class="rate-icon">📦</div><div class="rate-title">Cardboard / Carton</div><div class="rate-price" id="rate-card-display">--</div></div>
+                <div class="rate-item"><div class="rate-icon">🧴</div><div class="rate-title">Hard Plastic / PET</div><div class="rate-price" id="rate-plas-display">--</div></div>
+                <div class="rate-item"><div class="rate-icon">🥫</div><div class="rate-title">Iron / Metals</div><div class="rate-price" id="rate-iron-display">--</div></div>
+                <div class="rate-item"><div class="rate-icon">💻</div><div class="rate-title">Mixed E-Waste</div><div class="rate-price" id="rate-ewaste-display">--</div></div>
             </div>
             <div class="rate-disclaimer">
                 * <strong>Note on Wet Waste:</strong> Wet waste (Geela Kachra) collection is a paid disposal service. We charge ₹2 - ₹3 per KG.
@@ -325,7 +308,7 @@
         <section class="form-section">
             <div class="pickup-form">
                 <h2>Complete Your Booking</h2>
-                <form action="#" method="POST" onsubmit="event.preventDefault(); alert('Request received! Our team will contact you via WhatsApp shortly.');">
+                <form id="booking-form" onsubmit="submitBookingForm(event)">
                     <div class="form-group">
                         <label for="client-type">I am representing a...</label>
                         <select id="client-type" name="type" onchange="toggleFormFields()">
@@ -382,7 +365,26 @@
         </section>
     </div>
 
-    <!-- TAB 6: ABOUT US & SUPPORT -->
+    <!-- TAB 6: TRACK MY PICKUPS -->
+    <div id="tab-track" class="tab-content">
+        <section class="form-section">
+            <div class="pickup-form" style="max-width: 800px;">
+                <h2>Track Your Past & Upcoming Pickups</h2>
+                <p style="text-align: center; color: #666; margin-bottom: 20px;">Enter your registered WhatsApp number to view your order history and scheduled arrivals.</p>
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 30px;">
+                    <input type="tel" id="track-phone" placeholder="Enter phone number (e.g. +91 8356931205)" style="flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 5px; font-size: 1rem;">
+                    <button class="btn" style="margin: 0;" onclick="fetchMyBookings()">Search</button>
+                </div>
+
+                <div id="booking-results" style="display: none;">
+                    <!-- Results will be injected here by JS -->
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- TAB 7: ABOUT US & SUPPORT -->
     <div id="tab-about" class="tab-content">
         <section class="about-section">
             <h2>About EcoCollect India</h2>
@@ -423,26 +425,38 @@
         </section>
     </div>
 
-    <!-- Footer with Connections -->
+    <!-- Footer -->
     <footer>
         <p>&copy; 2026 EcoCollect India. A greener tomorrow starts today.</p>
         <p class="footer-badge">Supporting the Swachh Bharat Mission 🇮🇳</p>
         
-        <!-- CONNECTION LINKS -->
         <div class="portal-links">
             <a href="admin_login.html">🔒 Admin Portal Login</a>
             <a href="driver_registration.html">🚚 Become a Driver Partner</a>
         </div>
     </footer>
 
-    <!-- JavaScript Logic -->
+    <!-- JavaScript Logic connecting to backend -->
     <script>
-        function switchTab(tabId) {
-            const allTabs = document.querySelectorAll('.tab-content');
-            allTabs.forEach(tab => tab.classList.remove('active'));
+        const API_URL = 'http://localhost:5000/api';
 
-            const allLinks = document.querySelectorAll('nav a');
-            allLinks.forEach(link => link.classList.remove('active-link'));
+        // Fetch Live Scrap Rates from Backend on Load
+        fetch(`${API_URL}/rates`)
+            .then(res => res.json())
+            .then(data => {
+                if(data.success) {
+                    document.getElementById('rate-news-display').innerText = `₹${data.rates.news}`;
+                    document.getElementById('rate-card-display').innerText = `₹${data.rates.card}`;
+                    document.getElementById('rate-plas-display').innerText = `₹${data.rates.plas}`;
+                    document.getElementById('rate-iron-display').innerText = `₹${data.rates.iron}`;
+                    document.getElementById('rate-ewaste-display').innerText = `₹${data.rates.ewaste}`;
+                }
+            })
+            .catch(err => console.log("Backend not running yet for rates."));
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('nav a').forEach(link => link.classList.remove('active-link'));
 
             document.getElementById(tabId).classList.add('active');
 
@@ -460,10 +474,9 @@
             toggleFormFields(); 
         }
 
-        function checkPincode() {
+        async function checkPincode() {
             const pin = document.getElementById('pincode').value;
             const result = document.getElementById('pincode-result');
-            const serviceableAreas = ['400001', '400050', '400059', '400099', '400705', '400601', '410206']; 
             
             if(pin.trim() === '' || pin.length !== 6) {
                 result.style.color = 'red';
@@ -471,12 +484,20 @@
                 return;
             }
 
-            if(serviceableAreas.includes(pin)) {
-                result.style.color = '#028024'; 
-                result.innerText = '✅ Great news! Our trucks operate in your PIN Code.';
-            } else {
-                result.style.color = '#e65100'; 
-                result.innerText = '⏳ We are not in your area yet, but join our WhatsApp waitlist!';
+            try {
+                const response = await fetch(`${API_URL}/pincodes/${pin}`);
+                const data = await response.json();
+
+                if(data.serviceable) {
+                    result.style.color = '#028024'; 
+                    result.innerText = '✅ Great news! Our trucks operate in your PIN Code.';
+                } else {
+                    result.style.color = '#e65100'; 
+                    result.innerText = '⏳ We are not in your area yet, but join our WhatsApp waitlist!';
+                }
+            } catch (error) {
+                result.style.color = 'red'; 
+                result.innerText = 'Server error. Is the backend running?';
             }
         }
 
@@ -504,6 +525,91 @@
                 businessFields.style.display = 'block';
                 addressField.style.display = 'block';
                 submitBtn.style.display = 'block';
+            }
+        }
+
+        // Send Booking to Backend
+        async function submitBookingForm(event) {
+            event.preventDefault();
+            const btn = document.getElementById('submit-btn');
+            btn.innerText = 'Processing...';
+            btn.disabled = true;
+
+            const payload = {
+                type: document.getElementById('client-type').value,
+                name: document.getElementById('name').value,
+                whatsapp: document.getElementById('whatsapp').value,
+                fullAddress: document.getElementById('full-address').value,
+                societyName: document.getElementById('society-name')?.value,
+                flatCount: document.getElementById('flat-count')?.value,
+                bizName: document.getElementById('biz-name')?.value,
+                wasteVolume: document.getElementById('waste-volume')?.value
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/bookings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(`✅ Booking Confirmed! Your Tracking ID is: ${data.bookingId}`);
+                    document.getElementById('booking-form').reset();
+                    switchTab('tab-track'); // Switch to tracking tab to see it
+                    document.getElementById('track-phone').value = payload.whatsapp;
+                    fetchMyBookings(); // Load it instantly
+                }
+            } catch (error) {
+                alert("Server error. Ensure backend is running on localhost:5000");
+            } finally {
+                btn.innerText = 'Schedule Pickup Now';
+                btn.disabled = false;
+            }
+        }
+
+        // Fetch User's Specific Bookings
+        async function fetchMyBookings() {
+            const phone = document.getElementById('track-phone').value.trim();
+            const resultsDiv = document.getElementById('booking-results');
+            
+            if(!phone) return alert("Please enter your phone number.");
+            
+            resultsDiv.style.display = 'block';
+            resultsDiv.innerHTML = '<p style="text-align:center;">Fetching your records...</p>';
+
+            try {
+                const response = await fetch(`${API_URL}/customer/bookings/${encodeURIComponent(phone)}`);
+                const data = await response.json();
+
+                if (data.bookings.length === 0) {
+                    resultsDiv.innerHTML = '<p style="color: red; text-align:center;">No pickups found for this number.</p>';
+                    return;
+                }
+
+                let html = '';
+                data.bookings.forEach(bk => {
+                    // Decide color based on status
+                    let statusColor = bk.status === 'Completed' ? 'green' : (bk.status === 'Assigned' ? 'blue' : 'orange');
+                    let date = new Date(bk.scheduledFor).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short'});
+
+                    html += `
+                        <div style="border: 1px solid #ccc; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px;">
+                                <strong style="color: var(--primary);">${bk.id}</strong>
+                                <span style="background: ${statusColor}; color: white; padding: 3px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold;">${bk.status}</span>
+                            </div>
+                            <p style="margin-bottom: 5px;"><strong>Scheduled Arrival:</strong> ${date}</p>
+                            <p style="margin-bottom: 5px;"><strong>Address:</strong> ${bk.address}</p>
+                            ${bk.status === 'Completed' ? `<p style="color: green; margin-top: 10px;"><strong>✅ Collected:</strong> ${bk.collectedWeight} KG</p>` : ''}
+                        </div>
+                    `;
+                });
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                resultsDiv.innerHTML = '<p style="color: red;">Error connecting to server. Is it running?</p>';
             }
         }
     </script>
