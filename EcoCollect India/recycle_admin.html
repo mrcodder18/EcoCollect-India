@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- SECURITY CHECK: Kick user out if not logged in -->
     <script>
         if (localStorage.getItem('eco_admin_logged_in') !== 'true') {
             window.location.href = 'admin_login.html';
@@ -96,7 +95,6 @@
 </head>
 <body>
 
-    <!-- Sidebar -->
     <div class="sidebar">
         <div class="sidebar-header">
             <h2>EcoCollect <span>Admin</span></h2>
@@ -107,7 +105,6 @@
             <a id="nav-rates" onclick="switchView('view-rates')">📉 Update Scrap Rates</a>
             <a id="nav-customers" onclick="alert('Customer Database module coming soon!')">👥 Customers (RWA)</a>
             
-            <!-- Bottom Section for Links and Logout -->
             <div class="sidebar-bottom">
                 <a href="recycle_customer.html" style="color: #aeb9c6;">🏠 Public Website</a>
                 <a onclick="logoutAdmin()" style="color: #f44336; font-weight: bold;">🚪 Logout</a>
@@ -115,9 +112,7 @@
         </div>
     </div>
 
-    <!-- Main Content -->
     <div class="main-content">
-        <!-- Top Header -->
         <div class="top-header">
             <div class="date-display" id="current-date"></div>
             <div class="admin-profile">
@@ -125,7 +120,6 @@
             </div>
         </div>
 
-        <!-- VIEW 1: Dashboard Overview -->
         <div id="view-dashboard" class="view-content active">
             <h1 class="page-title">Overview</h1>
             
@@ -136,11 +130,11 @@
                 </div>
                 <div class="stat-card blue">
                     <h3>Total Active Clients</h3>
-                    <div class="value">48</div>
+                    <div class="value" id="stat-clients">0</div>
                 </div>
                 <div class="stat-card orange">
                     <h3>Wet Waste Collected (KG)</h3>
-                    <div class="value">1,450</div>
+                    <div class="value" id="stat-kg">0</div>
                 </div>
             </div>
 
@@ -160,14 +154,12 @@
                             </tr>
                         </thead>
                         <tbody id="recent-tbody">
-                            <!-- Populated by JS -->
-                        </tbody>
+                            </tbody>
                     </table>
                 </div>
             </div>
         </div>
 
-        <!-- VIEW 2: Manage Pickups -->
         <div id="view-pickups" class="view-content">
             <h1 class="page-title">Manage Pickups</h1>
             
@@ -189,14 +181,12 @@
                             </tr>
                         </thead>
                         <tbody id="pickups-tbody">
-                            <!-- Populated by JS -->
-                        </tbody>
+                            </tbody>
                     </table>
                 </div>
             </div>
         </div>
 
-        <!-- VIEW 3: Update Scrap Rates -->
         <div id="view-rates" class="view-content">
             <h1 class="page-title">Live Scrap Rates Configuration</h1>
             
@@ -214,51 +204,52 @@
                             <label>📰 Newspaper (Raddi)</label>
                             <div class="input-group">
                                 <span>₹</span>
-                                <input type="number" id="rate-news" value="15" required>
+                                <input type="number" id="rate-news" required>
                             </div>
                         </div>
                         <div class="form-group">
                             <label>📦 Cardboard / Carton</label>
                             <div class="input-group">
                                 <span>₹</span>
-                                <input type="number" id="rate-card" value="10" required>
+                                <input type="number" id="rate-card" required>
                             </div>
                         </div>
                         <div class="form-group">
                             <label>🧴 Hard Plastic / PET</label>
                             <div class="input-group">
                                 <span>₹</span>
-                                <input type="number" id="rate-plas" value="12" required>
+                                <input type="number" id="rate-plas" required>
                             </div>
                         </div>
                         <div class="form-group">
                             <label>🥫 Iron / Metals</label>
                             <div class="input-group">
                                 <span>₹</span>
-                                <input type="number" id="rate-iron" value="28" required>
+                                <input type="number" id="rate-iron" required>
                             </div>
                         </div>
                         <div class="form-group">
                             <label>💻 Mixed E-Waste</label>
                             <div class="input-group">
                                 <span>₹</span>
-                                <input type="number" id="rate-ewaste" value="20" required>
+                                <input type="number" id="rate-ewaste" required>
                             </div>
                         </div>
                     </div>
-                    <button type="submit" class="save-btn">Save & Publish Rates</button>
+                    <button type="submit" class="save-btn" id="btn-save-rates">Save & Publish Rates</button>
                 </form>
             </div>
         </div>
 
     </div>
 
-    <!-- JavaScript Logic -->
     <script>
+        const API_URL = 'http://localhost:5000/api';
+
         // --- Secure Logout ---
         function logoutAdmin() {
-            localStorage.removeItem('eco_admin_logged_in'); // Destroy the session token
-            window.location.href = 'admin_login.html'; // Redirect to login page
+            localStorage.removeItem('eco_admin_logged_in'); 
+            window.location.href = 'admin_login.html'; 
         }
 
         // Set Today's Date in Header
@@ -276,88 +267,140 @@
             if(navLink) navLink.classList.add('active');
         }
 
-        // --- Mock Database for Bookings ---
-        const bookings = [
-            { id: 'BK-10492', name: 'Gokuldham Society', type: 'RWA', phone: '9876543210', address: 'Plot 4, Sector 12, Panvel', status: 'Pending' },
-            { id: 'BK-10493', name: 'The Bombay Cafe', type: 'Restaurant', phone: '8356931205', address: 'Old Mumbai Highway, Panvel', status: 'Assigned' },
-            { id: 'BK-10494', name: 'Rahul Sharma', type: 'Household', phone: '9123456789', address: 'Apt 4B, Green Heights, Khandeshwar', status: 'Pending' },
-            { id: 'BK-10495', name: 'TechPark IT', type: 'Corporate', phone: '9988776655', address: 'Mindspace, Navi Mumbai', status: 'Completed' }
-        ];
-
-        // --- Render Tables ---
         function getStatusBadge(status) {
             const lowerStatus = status.toLowerCase();
             return `<span class="status ${lowerStatus}">${status}</span>`;
         }
 
-        function renderTables() {
-            const mainTbody = document.getElementById('pickups-tbody');
-            const recentTbody = document.getElementById('recent-tbody');
-            mainTbody.innerHTML = '';
-            recentTbody.innerHTML = '';
+        // --- Fetch Real Dashboard Data ---
+        async function fetchDashboardData() {
+            try {
+                const response = await fetch(`${API_URL}/admin/dashboard`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Update Stats
+                    document.getElementById('stat-pending').innerText = data.stats.pendingPickups;
+                    document.getElementById('stat-clients').innerText = data.stats.activeClients;
+                    document.getElementById('stat-kg').innerText = data.stats.totalWasteKg;
 
-            let pendingCount = 0;
+                    // Update Tables
+                    const mainTbody = document.getElementById('pickups-tbody');
+                    const recentTbody = document.getElementById('recent-tbody');
+                    
+                    mainTbody.innerHTML = '';
+                    recentTbody.innerHTML = '';
 
-            bookings.forEach((bk, index) => {
-                if(bk.status === 'Pending') pendingCount++;
+                    // Reverse array so newest bookings are on top
+                    const sortedBookings = data.bookings.reverse();
 
-                // Main Pickups Table Row
-                mainTbody.innerHTML += `
-                    <tr>
-                        <td style="font-weight: bold; color: var(--primary);">${bk.id}</td>
-                        <td>
-                            <strong>${bk.name}</strong><br>
-                            <span style="font-size: 0.8rem; color: #888;">${bk.type}</span>
-                        </td>
-                        <td>${bk.phone}</td>
-                        <td>${bk.address}</td>
-                        <td id="status-cell-${index}">${getStatusBadge(bk.status)}</td>
-                        <td>
-                            <select class="action-select" onchange="updateStatus(${index}, this.value)">
-                                <option value="Pending" ${bk.status === 'Pending' ? 'selected' : ''}>Pending</option>
-                                <option value="Assigned" ${bk.status === 'Assigned' ? 'selected' : ''}>Assigned to Truck</option>
-                                <option value="Completed" ${bk.status === 'Completed' ? 'selected' : ''}>Completed</option>
-                            </select>
-                        </td>
-                    </tr>
-                `;
+                    sortedBookings.forEach((bk, index) => {
+                        // Main Pickups Table Row
+                        mainTbody.innerHTML += `
+                            <tr>
+                                <td style="font-weight: bold; color: var(--primary);">${bk.id}</td>
+                                <td>
+                                    <strong>${bk.name}</strong><br>
+                                    <span style="font-size: 0.8rem; color: #888;">${bk.clientType} | ${bk.phone}</span>
+                                </td>
+                                <td>${bk.address}</td>
+                                <td>${getStatusBadge(bk.status)}</td>
+                                <td>
+                                    <select class="action-select" onchange="updateStatus('${bk.id}', this.value)" ${bk.status === 'Completed' ? 'disabled' : ''}>
+                                        <option value="Pending" ${bk.status === 'Pending' ? 'selected' : ''}>Pending</option>
+                                        <option value="Assigned" ${bk.status === 'Assigned' ? 'selected' : ''}>Assign to Driver</option>
+                                        <option value="Completed" ${bk.status === 'Completed' ? 'selected' : ''}>Completed</option>
+                                    </select>
+                                </td>
+                            </tr>
+                        `;
 
-                // Recent Dashboard Table Row (Only show first 3)
-                if(index < 3) {
-                    recentTbody.innerHTML += `
-                        <tr>
-                            <td style="font-weight: bold;">${bk.id}</td>
-                            <td>${bk.name}</td>
-                            <td>${bk.type}</td>
-                            <td id="dash-status-cell-${index}">${getStatusBadge(bk.status)}</td>
-                        </tr>
-                    `;
+                        // Recent Dashboard Table Row (Only show first 4)
+                        if(index < 4) {
+                            recentTbody.innerHTML += `
+                                <tr>
+                                    <td style="font-weight: bold;">${bk.id}</td>
+                                    <td>${bk.name}</td>
+                                    <td>${bk.clientType}</td>
+                                    <td>${getStatusBadge(bk.status)}</td>
+                                </tr>
+                            `;
+                        }
+                    });
                 }
-            });
+            } catch (error) {
+                console.error("Failed to load dashboard data. Is the backend running?", error);
+            }
+        }
 
-            // Update Stats
-            document.getElementById('stat-pending').innerText = pendingCount;
+        // --- Fetch Current Rates ---
+        async function fetchCurrentRates() {
+            try {
+                const res = await fetch(`${API_URL}/rates`);
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('rate-news').value = data.rates.news || 15;
+                    document.getElementById('rate-card').value = data.rates.card || 10;
+                    document.getElementById('rate-plas').value = data.rates.plas || 12;
+                    document.getElementById('rate-iron').value = data.rates.iron || 28;
+                    document.getElementById('rate-ewaste').value = data.rates.ewaste || 20;
+                }
+            } catch (err) {
+                console.error("Failed to fetch rates.");
+            }
         }
 
         // --- Update Status Action ---
-        function updateStatus(index, newStatus) {
-            bookings[index].status = newStatus;
-            
-            // Re-render to update badges and counters
-            renderTables();
-            
-            // Show brief notification simulation
-            console.log(`Updated ${bookings[index].id} to ${newStatus}`);
+        async function updateStatus(id, newStatus) {
+            try {
+                const response = await fetch(`${API_URL}/admin/bookings/${id}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    fetchDashboardData(); // Refresh the UI immediately
+                }
+            } catch (error) {
+                alert("Error updating status.");
+            }
         }
 
         // --- Save Scrap Rates Action ---
-        function saveRates(event) {
+        async function saveRates(event) {
             event.preventDefault();
-            alert("✅ Scrap rates updated successfully! The public website will now reflect these new prices.");
+            const btn = document.getElementById('btn-save-rates');
+            btn.innerText = "Saving...";
+
+            const newRates = {
+                news: parseFloat(document.getElementById('rate-news').value),
+                card: parseFloat(document.getElementById('rate-card').value),
+                plas: parseFloat(document.getElementById('rate-plas').value),
+                iron: parseFloat(document.getElementById('rate-iron').value),
+                ewaste: parseFloat(document.getElementById('rate-ewaste').value)
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/admin/rates`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newRates)
+                });
+                const data = await response.json();
+                if (data.success) {
+                    alert("✅ Scrap rates updated successfully! The public website will now reflect these new prices.");
+                }
+            } catch (error) {
+                alert("Failed to update rates. Is the backend running?");
+            } finally {
+                btn.innerText = "Save & Publish Rates";
+            }
         }
 
-        // Initialize App
-        renderTables();
+        // Initialize App on load
+        fetchDashboardData();
+        fetchCurrentRates();
     </script>
 </body>
 </html>
