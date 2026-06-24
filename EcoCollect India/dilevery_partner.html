@@ -25,7 +25,7 @@
         .truck-load { background: rgba(255,255,255,0.2); padding: 5px 10px; border-radius: 20px; font-size: 0.9rem; font-weight: bold; display: flex; align-items: center; gap: 5px; }
 
         /* Embedded Map Section */
-        #map { width: 100%; height: 200px; background-color: #e0e0e0; border-bottom: 3px solid var(--secondary); }
+        #map { width: 100%; height: 200px; background-color: #e0e0e0; border-bottom: 3px solid var(--secondary); background-image: url('https://upload.wikimedia.org/wikipedia/commons/b/bd/Google_Maps_Logo_2020.svg'); background-size: 30%; background-repeat: no-repeat; background-position: center; }
 
         /* Main Scrollable Content */
         .app-body { flex-grow: 1; overflow-y: auto; padding: 15px; padding-bottom: 80px; }
@@ -72,6 +72,7 @@
 <body>
 
     <div class="app-container">
+        <!-- Header -->
         <header class="app-header">
             <div class="driver-info">
                 <div class="avatar">R</div>
@@ -85,17 +86,21 @@
             </div>
         </header>
 
+        <!-- Google Maps View Placeholder -->
         <div id="map"></div>
 
+        <!-- Main Body -->
         <div class="app-body" id="app-body">
             
             <div id="route-view">
                 <h2 class="section-title">
-                    <span>Pending Pickups</span>
+                    <span>Assigned Pickups</span>
                     <span style="color: var(--primary);" id="pending-count">0</span>
                 </h2>
                 <div id="pending-tasks">
-                    </div>
+                    <!-- Tasks will be injected here by JS -->
+                    <p style="text-align:center; margin-top:20px; color:#888;">Fetching live route from HQ...</p>
+                </div>
 
                 <div class="warehouse-card" id="warehouse-card">
                     <h3>🏢 Warehouse Drop-off</h3>
@@ -114,6 +119,7 @@
 
         </div>
 
+        <!-- Bottom Navigation -->
         <nav class="bottom-nav">
             <div class="nav-item active" id="nav-route" onclick="switchView('route')">
                 <div class="nav-icon">🗺️</div>
@@ -125,6 +131,7 @@
             </div>
         </nav>
 
+        <!-- Weight Entry Modal -->
         <div class="modal-overlay" id="weight-modal">
             <div class="modal">
                 <h3>Confirm Pickup Weight</h3>
@@ -132,115 +139,68 @@
                 <input type="number" id="collected-weight" placeholder="e.g. 25" inputmode="numeric">
                 <div class="modal-btns">
                     <button class="modal-btn-cancel" onclick="closeModal()">Cancel</button>
-                    <button class="modal-btn-confirm" onclick="confirmPickup()">Submit</button>
+                    <button class="modal-btn-confirm" id="confirmPickupBtn" onclick="confirmPickup()">Submit</button>
                 </div>
             </div>
         </div>
 
     </div>
 
-    <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY_HERE&callback=initMap"></script>
-
+    <!-- JavaScript Logic connecting to backend -->
     <script>
-        // State Management
+        const API_URL = 'http://localhost:5000/api';
         let totalLoadKg = 0;
         let currentTaskIdToComplete = null;
-        let map;
-        let markers = [];
+        let localCompletedTasks = [];
 
-        // Mock Data for Assigned Pickups (Added Lat/Lng for the Map)
-        let pickups = [
-            { id: 1, name: 'Gokuldham Society', type: 'Wet Waste (Geela)', address: 'Sector 12, Panvel', phone: '9876543210', status: 'pending', kg: 0, lat: 18.9894, lng: 73.1175 },
-            { id: 2, name: 'The Bombay Cafe', type: 'Mixed Waste', address: 'Old Mumbai Highway, Panvel', phone: '8356931205', status: 'pending', kg: 0, lat: 18.9950, lng: 73.1150 },
-            { id: 3, name: 'TechPark IT', type: 'Dry Scrap (Sukha)', address: 'Khandeshwar, Navi Mumbai', phone: '9988776655', status: 'pending', kg: 0, lat: 19.0136, lng: 73.0978 }
-        ];
+        // 1. Fetch live assigned tasks from Admin Backend
+        async function fetchTasks() {
+            try {
+                const response = await fetch(`${API_URL}/driver/tasks`);
+                const data = await response.json();
+                
+                const pendingContainer = document.getElementById('pending-tasks');
+                pendingContainer.innerHTML = '';
+                
+                let pendingCount = 0;
 
-        // 2. Initialize the Interactive Map
-        function initMap() {
-            // Center map on Panvel area by default
-            map = new google.maps.Map(document.getElementById("map"), {
-                center: { lat: 18.9900, lng: 73.1150 },
-                zoom: 13,
-                disableDefaultUI: true, // Hides map controls to keep mobile view clean
-                zoomControl: true
-            });
-            updateMapMarkers();
-        }
-
-        // Add Markers to the map for pending pickups
-        function updateMapMarkers() {
-            if(!map) return;
-            
-            // Clear old markers
-            markers.forEach(marker => marker.setMap(null));
-            markers = [];
-
-            pickups.forEach(task => {
-                if (task.status === 'pending') {
-                    const marker = new google.maps.Marker({
-                        position: { lat: task.lat, lng: task.lng },
-                        map: map,
-                        title: task.name,
-                        icon: 'http://maps.google.com/mapfiles/ms/icons/orange-dot.png'
+                if (data.tasks.length === 0) {
+                    pendingContainer.innerHTML = '<p style="text-align:center; color:#666;">No pending pickups assigned by Admin.</p>';
+                } else {
+                    data.tasks.forEach(task => {
+                        pendingCount++;
+                        pendingContainer.innerHTML += `
+                            <div class="task-card" id="task-${task.id}">
+                                <div class="task-header">
+                                    <div class="task-title">${task.name}</div>
+                                    <div class="task-type">${task.clientType}</div>
+                                </div>
+                                <div class="task-address">📍 ${task.address}</div>
+                                <div class="btn-group">
+                                    <button class="btn btn-call" onclick="window.open('tel:${task.phone}')">📞</button>
+                                    <button class="btn btn-nav" onclick="openMaps('${task.address}')">🧭 Navigate</button>
+                                    <button class="btn btn-done" onclick="openWeightModal('${task.id}', '${task.name}')">✅ Picked Up</button>
+                                </div>
+                            </div>
+                        `;
                     });
-                    markers.push(marker);
                 }
-            });
-        }
 
-        // Render UI Tasks
-        function renderTasks() {
-            const pendingContainer = document.getElementById('pending-tasks');
-            const completedContainer = document.getElementById('completed-tasks');
-            pendingContainer.innerHTML = ''; completedContainer.innerHTML = '';
-            
-            let pendingCount = 0; let completedCount = 0;
+                document.getElementById('pending-count').innerText = pendingCount;
 
-            pickups.forEach(task => {
-                if (task.status === 'pending') {
-                    pendingCount++;
-                    pendingContainer.innerHTML += `
-                        <div class="task-card" id="task-${task.id}">
-                            <div class="task-header">
-                                <div class="task-title">${task.name}</div>
-                                <div class="task-type">${task.type}</div>
-                            </div>
-                            <div class="task-address">📍 ${task.address}</div>
-                            <div class="btn-group">
-                                <button class="btn btn-call" onclick="window.open('tel:${task.phone}')">📞</button>
-                                <button class="btn btn-nav" onclick="openMaps('${task.address}')">🧭 Navigate</button>
-                                <button class="btn btn-done" onclick="openWeightModal(${task.id}, '${task.name}')">✅ Picked Up</button>
-                            </div>
-                        </div>
-                    `;
-                } else if (task.status === 'completed') {
-                    completedCount++;
-                    completedContainer.innerHTML += `
-                        <div class="task-card completed">
-                            <div class="task-header">
-                                <div class="task-title">${task.name}</div>
-                                <div style="font-weight: bold; color: var(--primary);">+${task.kg} KG</div>
-                            </div>
-                            <div class="task-address" style="margin-bottom: 0;">📍 ${task.address}</div>
-                        </div>
-                    `;
+                // Show Warehouse Dropoff if tasks are done and truck is loaded
+                if (totalLoadKg > 0 && pendingCount === 0) {
+                    document.getElementById('warehouse-card').classList.add('visible');
+                } else {
+                    document.getElementById('warehouse-card').classList.remove('visible');
                 }
-            });
 
-            document.getElementById('pending-count').innerText = pendingCount;
-            document.getElementById('no-history').style.display = completedCount === 0 ? 'block' : 'none';
-
-            // Show Warehouse Dropoff if tasks are done and truck is loaded
-            if (totalLoadKg > 0 && pendingCount === 0) {
-                document.getElementById('warehouse-card').classList.add('visible');
-            } else {
-                document.getElementById('warehouse-card').classList.remove('visible');
+            } catch (error) {
+                document.getElementById('pending-tasks').innerHTML = '<p style="color:red; text-align:center;">Failed to connect to HQ Server.</p>';
             }
-            
-            updateMapMarkers(); // Refresh map
         }
 
-        // Navigation
+        // Navigation UI logic
         function switchView(view) {
             document.getElementById('nav-route').classList.remove('active');
             document.getElementById('nav-history').classList.remove('active');
@@ -250,23 +210,20 @@
             if (view === 'route') {
                 document.getElementById('nav-route').classList.add('active');
                 document.getElementById('route-view').style.display = 'block';
-                document.getElementById('map').style.display = 'block'; // Show map
+                document.getElementById('map').style.display = 'block';
             } else {
                 document.getElementById('nav-history').classList.add('active');
                 document.getElementById('history-view').style.display = 'block';
-                document.getElementById('map').style.display = 'none'; // Hide map to save space
+                document.getElementById('map').style.display = 'none';
             }
         }
 
-        // 3. Open Turn-by-Turn Mobile Navigation App
         function openMaps(address) {
-            // This URL intent forces the phone to open the Google Maps App with driving directions
             const encodedAddress = encodeURIComponent(address);
             const googleMapsIntentUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}&travelmode=driving`;
             window.open(googleMapsIntentUrl, '_blank');
         }
 
-        // Modal Logic
         function openWeightModal(taskId, clientName) {
             currentTaskIdToComplete = taskId;
             document.getElementById('modal-client-name').innerText = clientName;
@@ -279,20 +236,60 @@
             currentTaskIdToComplete = null;
         }
 
-        function confirmPickup() {
+        // 2. Submit exact weight to Backend
+        async function confirmPickup() {
             const weight = parseFloat(document.getElementById('collected-weight').value);
             if (isNaN(weight) || weight <= 0) return alert("Enter valid weight.");
 
-            const taskIndex = pickups.findIndex(t => t.id === currentTaskIdToComplete);
-            if (taskIndex > -1) {
-                pickups[taskIndex].status = 'completed';
-                pickups[taskIndex].kg = weight;
-                totalLoadKg += weight;
-            }
+            const btn = document.getElementById('confirmPickupBtn');
+            btn.innerText = "Submitting...";
+            btn.disabled = true;
 
-            closeModal();
-            updateTruckLoad();
-            renderTasks();
+            try {
+                const response = await fetch(`${API_URL}/driver/tasks/${currentTaskIdToComplete}/complete`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ weight: weight })
+                });
+                
+                const data = await response.json();
+
+                if (data.success) {
+                    totalLoadKg += weight;
+                    
+                    // Add to local history view
+                    localCompletedTasks.push({ name: data.booking.name, kg: weight, address: data.booking.address });
+                    renderHistory();
+
+                    closeModal();
+                    updateTruckLoad();
+                    fetchTasks(); // Refresh live route list
+                }
+            } catch (error) {
+                alert("Failed to submit to server.");
+            } finally {
+                btn.innerText = "Submit";
+                btn.disabled = false;
+            }
+        }
+
+        function renderHistory() {
+            const completedContainer = document.getElementById('completed-tasks');
+            completedContainer.innerHTML = '';
+            
+            if (localCompletedTasks.length > 0) document.getElementById('no-history').style.display = 'none';
+
+            localCompletedTasks.forEach(task => {
+                completedContainer.innerHTML += `
+                    <div class="task-card completed">
+                        <div class="task-header">
+                            <div class="task-title">${task.name}</div>
+                            <div style="font-weight: bold; color: var(--primary);">+${task.kg} KG</div>
+                        </div>
+                        <div class="task-address" style="margin-bottom: 0;">📍 ${task.address}</div>
+                    </div>
+                `;
+            });
         }
 
         function updateTruckLoad() {
@@ -302,15 +299,15 @@
 
         function unloadTruck() {
             if (confirm(`Confirm unloading ${totalLoadKg} KG at the warehouse?`)) {
-                alert("Shift completed!");
+                alert("Shift completed! Great job.");
                 totalLoadKg = 0;
                 updateTruckLoad();
                 document.getElementById('warehouse-card').classList.remove('visible');
             }
         }
 
-        // Initial render
-        renderTasks();
+        // Start App
+        fetchTasks();
     </script>
 </body>
 </html>
