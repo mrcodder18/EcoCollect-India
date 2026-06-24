@@ -75,7 +75,7 @@
 </head>
 <body>
 
-    <div class="registration-container">
+    <div class="registration-container" id="main-container">
         <div class="header">
             <div class="logo">EcoCollect <span>India</span> ♻️</div>
             <p>Delivery Partner Registration</p>
@@ -87,7 +87,7 @@
             <div class="progress-step" id="indicator-3">3</div>
         </div>
 
-        <form id="registrationForm" onsubmit="return false;">
+        <form id="registrationForm" onsubmit="submitRegistration(event)">
             
             <!-- STEP 1: Personal Details -->
             <div class="form-step active" id="step-1">
@@ -176,11 +176,10 @@
 
                 <div class="btn-container">
                     <button type="button" class="btn btn-prev" onclick="prevStep(3)">Back</button>
-                    <button type="button" class="btn btn-next" style="background: var(--secondary);" onclick="submitRegistration()">Submit & Verify Data</button>
+                    <button type="submit" class="btn btn-next" style="background: var(--secondary);" id="submitBtn">Submit & Verify Data</button>
                 </div>
             </div>
             
-            <!-- Connection to Delivery Partner App -->
             <div class="login-link">
                 Already registered? <a href="dilevery_partner.html">Login to Driver Dashboard</a>
             </div>
@@ -192,28 +191,27 @@
     <div class="loading-overlay" id="loadingOverlay">
         <div class="spinner"></div>
         <h2 style="color: var(--primary);">Authenticating Credentials...</h2>
-        <p style="color: #666; margin-top: 10px;">Checking RTO Database guidelines...</p>
+        <p style="color: #666; margin-top: 10px;">Uploading secure documents to server...</p>
     </div>
 
     <!-- Script Logic -->
     <script>
+        const API_URL = 'http://localhost:5000/api';
+
         // Multi-Step Navigation
         function nextStep(currentStep) {
             if (currentStep === 1) {
                 if(!document.getElementById('fullName').value || !document.getElementById('phone').value || !document.getElementById('city').value) {
-                    alert("Please fill all required fields in Step 1.");
-                    return;
+                    alert("Please fill all required fields in Step 1."); return;
                 }
             } else if (currentStep === 2) {
                 if(!document.getElementById('vehicleType').value || !document.getElementById('vehicleNum').value) {
-                    alert("Please fill all required fields in Step 2.");
-                    return;
+                    alert("Please fill all required fields in Step 2."); return;
                 }
             }
 
             document.getElementById(`step-${currentStep}`).classList.remove('active');
             document.getElementById(`step-${currentStep + 1}`).classList.add('active');
-            
             document.getElementById(`indicator-${currentStep}`).classList.add('completed');
             document.getElementById(`indicator-${currentStep + 1}`).classList.add('active');
         }
@@ -221,28 +219,27 @@
         function prevStep(currentStep) {
             document.getElementById(`step-${currentStep}`).classList.remove('active');
             document.getElementById(`step-${currentStep - 1}`).classList.add('active');
-            
             document.getElementById(`indicator-${currentStep}`).classList.remove('active');
             document.getElementById(`indicator-${currentStep - 1}`).classList.remove('completed');
         }
 
-        // File Upload UI Update
         function updateFileName(input, targetId) {
             const fileName = input.files.length > 0 ? input.files[0].name : "No file chosen";
             document.getElementById(targetId).innerText = fileName;
         }
 
-        // Submission & Connection Logic
-        function submitRegistration() {
+        // Real Submission Logic
+        async function submitRegistration(event) {
+            event.preventDefault();
+            
             const dlNumber = document.getElementById('dlNumber').value.toUpperCase().replace(/\s/g, '');
             const dlError = document.getElementById('dlError');
             const consent = document.getElementById('consent').checked;
-            
-            const dlFront = document.getElementById('dlFront').files.length;
-            const dlBack = document.getElementById('dlBack').files.length;
+            const dlFront = document.getElementById('dlFront').files[0];
+            const dlBack = document.getElementById('dlBack').files[0];
 
+            // Strict Regex Check for Indian DL
             const dlPattern = /^[A-Z]{2}[0-9]{2}[0-9]{11}$/;
-
             if (!dlPattern.test(dlNumber)) {
                 dlError.style.display = 'block';
                 document.getElementById('dlNumber').style.borderColor = '#d32f2f';
@@ -252,34 +249,54 @@
                 document.getElementById('dlNumber').style.borderColor = 'var(--border)';
             }
 
-            if (dlFront === 0 || dlBack === 0) {
-                alert("STRICT VERIFICATION FAILED: You must upload both Front and Back photos of your Driving License.");
-                return;
+            if (!dlFront || !dlBack) {
+                alert("STRICT VERIFICATION FAILED: You must upload both Front and Back photos of your Driving License."); return;
             }
-
             if (!consent) {
-                alert("You must agree to the background check to proceed.");
-                return;
+                alert("You must agree to the background check to proceed."); return;
             }
 
             document.getElementById('loadingOverlay').style.display = 'flex';
 
-            setTimeout(() => {
-                document.getElementById('loadingOverlay').style.display = 'none';
+            // Create Payload for Files
+            let formData = new FormData();
+            formData.append('fullName', document.getElementById('fullName').value);
+            formData.append('phone', document.getElementById('phone').value);
+            formData.append('city', document.getElementById('city').value);
+            formData.append('vehicleType', document.getElementById('vehicleType').value);
+            formData.append('vehicleNum', document.getElementById('vehicleNum').value);
+            formData.append('dlNumber', dlNumber);
+            formData.append('dlFront', dlFront);
+            formData.append('dlBack', dlBack);
+
+            try {
+                const response = await fetch(`${API_URL}/drivers/register`, {
+                    method: 'POST',
+                    body: formData // Note: Content-Type is set automatically by fetch for FormData
+                });
                 
-                // Replace entire container with success message and Link to the Delivery Partner App
-                document.querySelector('.registration-container').innerHTML = `
-                    <div style="text-align: center; padding: 20px;">
-                        <div style="font-size: 4rem; color: var(--primary); margin-bottom: 20px;">✅</div>
-                        <h2 style="color: var(--dark); margin-bottom: 10px;">Verification Successful</h2>
-                        <p style="color: #666; line-height: 1.6; margin-bottom: 30px;">
-                            Your Driving License (<strong>${dlNumber}</strong>) has been verified. Your account is now active.
-                        </p>
-                        <!-- THIS BUTTON CONNECTS TO dilevery_partner.html -->
-                        <button class="btn btn-next" onclick="window.location.href='dilevery_partner.html'" style="width: 100%; margin: 0;">Open Driver Dashboard</button>
-                    </div>
-                `;
-            }, 3000); 
+                const data = await response.json();
+                
+                document.getElementById('loadingOverlay').style.display = 'none';
+
+                if (data.success) {
+                    document.getElementById('main-container').innerHTML = `
+                        <div style="text-align: center; padding: 20px;">
+                            <div style="font-size: 4rem; color: var(--primary); margin-bottom: 20px;">✅</div>
+                            <h2 style="color: var(--dark); margin-bottom: 10px;">Verification Successful</h2>
+                            <p style="color: #666; line-height: 1.6; margin-bottom: 30px;">
+                                Your Driving License (<strong>${dlNumber}</strong>) has been uploaded securely to HQ. Your account is now active.
+                            </p>
+                            <button class="btn btn-next" onclick="window.location.href='dilevery_partner.html'" style="width: 100%; margin: 0;">Open Driver Dashboard</button>
+                        </div>
+                    `;
+                } else {
+                    alert("Error registering driver: " + data.message);
+                }
+            } catch (error) {
+                document.getElementById('loadingOverlay').style.display = 'none';
+                alert("Server connection failed. Make sure the Node backend is running.");
+            }
         }
     </script>
 </body>
